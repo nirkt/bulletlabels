@@ -44,6 +44,18 @@ python3 bl.py run --skin KnightPinata,RuffsBrawloween datasets/ds1 --overlay
 Step by step: `bl.py capture --skin X CAP`, then `bl.py label CAP DATASET`. `bl.py pages CAP OUT` makes the contact sheets
 (raw | outlined) the rules were reviewed on.
 
+### Maps and game modes
+
+The offline battle is a Showdown battle, so the **map layouts are the 25 Showdown maps** (`python3 bl.py maps`). The **look of
+every mode** is available through themes: any of the 44 themes works on any map (`python3 bl.py themes`; e.g. `BBArena` = the
+Brawl Ball arena, `BBArenaVolley`, `AirHockey`, `KatanaKingdomNN`, `Mortuary`, `Arcade`, ...). Other modes' map layouts
+(Brawl Ball, Knockout, Bounty, ...) are not supported yet: the game host refuses them, and `bl.py` stops with a message.
+
+```bash
+python3 bl.py run --skin GunSlingerDefault,BanditGirlDefault --map Survival2,Survival3 --theme BBArena,Mortuary datasets/ds2
+```
+(several maps / themes: the skins go round them)
+
 ### Capture modes
 
 * **solo** (default, reviewed): the brawler alone in an open part of the map; it idles, attacks in each direction, then uses its

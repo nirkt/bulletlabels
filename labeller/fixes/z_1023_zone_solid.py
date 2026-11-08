@@ -66,7 +66,7 @@ def _zs_grid(R=None):
     if not p:
         raise RuntimeError('zone labels need the capture map: set %s=<capture dir>/map.npy' % ZS_ENV)
     if p not in _ZS_MAPS:
-        _ZS_MAPS[p] = np.load(p).reshape(60, 60).astype(np.int64) - 27000000
+        _ZS_MAPS[p] = _zs_load_grid(p, np)
     return _ZS_MAPS[p]
 
 
@@ -168,3 +168,18 @@ def zone_labels(state, cam, R, taken, own_team=None):
         if new.any(): out[iid] = (new, did, own)
         else: out.pop(iid, None)
     return out
+
+
+def _zs_load_grid(p, np):
+    """the capture's tile grid (map value - 27000000), any map size: the real map (map.json map_w / map_h next to map.npy) is
+    placed in the top-left of a grid of at least 60 x 60 tiles, the rest open (0), so code written for the 60 x 60 Showdown maps
+    keeps working on the smaller (3v3, ...) and larger maps; 60 x 60 maps are unchanged"""
+    import os, json
+    a = np.load(p).astype(np.int64).ravel() - 27000000
+    W = H = 60
+    j = os.path.join(os.path.dirname(p), 'map.json')
+    if os.path.exists(j):
+        m = json.load(open(j)); W, H = int(m.get('map_w') or 60), int(m.get('map_h') or 60)
+    if W * H != a.size: W = H = int(round(a.size ** 0.5))
+    g = np.zeros((max(60, H), max(60, W)), np.int64); g[:H, :W] = a.reshape(H, W)
+    return g

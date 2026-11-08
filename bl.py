@@ -3,6 +3,7 @@
 
   python3 bl.py doctor                                   check the setup (game files, binaries, Python packages)
   python3 bl.py skins [--brawler Knight]                 list brawlers / skins (index, skin id, skin name, brawler)
+  python3 bl.py maps / themes                            the maps (Showdown) and themes (any mode's look); --map / --theme on capture / run
   python3 bl.py capture --skin KnightPinata OUT          capture one battle (solo: the brawler alone, attacks + supers)
   python3 bl.py capture --ring --skin A,B,C,... OUT      ring: up to 10 brawlers around player 0 (NOT REVIEWED YET, see README)
   python3 bl.py label CAPTURE DATASET [--motion]         labels -> images/ masks/ labels/ (+ overlays/ with --overlay)
@@ -59,13 +60,38 @@ def cmd_doctor(a):
     print('ready' if ok else 'not ready'); return 0 if ok else 1
 
 
+def maps_table():
+    """[(location name, game mode, map)] of every enabled location in the game files (csv_logic/locations.csv). The offline battle
+    is a Showdown battle: the game host accepts only locations of the Showdown mode (others fall back to the default map)."""
+    import csv, rc
+    L = list(csv.reader(open(os.path.join(rc.ASSETS, 'csv_logic', 'locations.csv'), encoding='utf8'))); h = L[0]
+    i_n, i_d, i_g, i_m = h.index('Name'), h.index('Disabled'), h.index('GameModeVariation'), h.index('Map')
+    return [(r[i_n], r[i_g], r[i_m]) for r in L[2:] if r and r[i_n] and r[i_d].strip().lower() not in ('true', '1')]
+
+
+def cmd_maps(a):
+    for nm, gm, mp in maps_table():
+        if gm != 'Showdown' and not a.all: continue
+        print('%-28s %-22s %s' % (nm, gm, mp))
+
+
+def themes_table():
+    import csv, rc
+    L = list(csv.reader(open(os.path.join(rc.ASSETS, 'csv_logic', 'location_themes.csv'), encoding='utf8')))
+    return [r[0] for r in L[2:] if r and r[0] and r[1].strip().lower() not in ('true', '1')]
+
+
+def cmd_themes(a):
+    for t in themes_table(): print(t)
+
+
 def cmd_skins(a):
     for i, sid, nm, ch in skins_table():
         if a.brawler and a.brawler.lower() != ch.lower(): continue
         print('%3d  %d  %-32s %s' % (i, sid, nm, ch))
 
 
-def capture(skins, out, ring=False, angles='0,90,180,270', seed=94000030, rounds=1, mixed=False, log=print):
+def capture(skins, out, ring=False, angles='0,90,180,270', seed=94000030, rounds=1, mixed=False, location='Survival612', theme='', log=print):
     """run framegen/posecap.py; skins = [(skin id, name, brawler)] (solo: the first one) -> True when frames were saved"""
     out = os.path.abspath(out)
     if ring: log('NOTE: ring mode has NOT been reviewed yet (solo mode is the reviewed one); its labels can be wrong. Default: '
@@ -77,10 +103,17 @@ def capture(skins, out, ring=False, angles='0,90,180,270', seed=94000030, rounds
     else:
         sid, nm, ch = skins[0]
         args = ['--chars', ','.join([ch] * 10), '--skins', ','.join([str(sid)] * 10), '--solo', '--solo-angles', angles]
+    args += ['--location', location] + (['--theme', theme] if theme else [])
     cmd = [sys.executable, os.path.join(REPO, 'framegen', 'posecap.py')] + args + ['--seed', str(seed), '--pix-every', '2', '--out', out,
                                                                                   '--id-dir', os.path.join(out, 'id'), '--fast-save']
     t0 = time.time(); r = subprocess.run(cmd, cwd=os.path.join(REPO, 'framegen'), capture_output=True, text=True)
     good = os.path.exists(os.path.join(out, 'frames.npz'))
+    mj = os.path.join(out, 'map.json')
+    if good and os.path.exists(mj):   # the game host falls back to the default map / theme when it rejects one: refuse that capture
+        err = int(json.load(open(mj)).get('err') or 0) & 0xffffffff
+        bad = (['map %s (only Showdown maps work: python3 bl.py maps)' % location] if err & (1 << 30) else []) + (['theme %s' % theme] if err & (1 << 31) else [])
+        if bad:
+            log('capture %s: the game rejected the %s' % (os.path.basename(out), ' and '.join(bad))); shutil.rmtree(out, ignore_errors=True); return False
     log('capture %s: %s (%.0f s)' % (os.path.basename(out), 'ok' if good else 'FAILED', time.time() - t0))
     if not good: log((r.stdout + r.stderr)[-3000:])
     return good
@@ -88,7 +121,7 @@ def capture(skins, out, ring=False, angles='0,90,180,270', seed=94000030, rounds
 
 def cmd_capture(a):
     sk = [resolve_skin(x) for x in a.skin.split(',')]
-    return 0 if capture(sk, a.out, ring=a.ring, angles=a.angles, seed=a.seed, rounds=a.rounds, mixed=a.mixed) else 1
+    return 0 if capture(sk, a.out, ring=a.ring, angles=a.angles, seed=a.seed, rounds=a.rounds, mixed=a.mixed, location=a.map, theme=a.theme) else 1
 
 
 def _motion_env(on):
@@ -118,9 +151,11 @@ def cmd_run(a):
     import export
     caps = os.path.join(os.path.abspath(a.out), '_captures'); os.makedirs(caps, exist_ok=True)
     groups = [[resolve_skin(x) for x in a.skin.split(',')]] if a.ring else [[resolve_skin(x)] for x in a.skin.split(',')]
-    for g in groups:
-        cap = os.path.join(caps, ('ring_' if a.ring else '') + '_'.join(s[1] for s in g)[:80] + '_s%d' % a.seed)
-        if capture(g, cap, ring=a.ring, angles=a.angles, seed=a.seed, rounds=a.rounds, mixed=a.mixed):
+    maps = [m for m in a.map.split(',') if m]; themes = [t for t in a.theme.split(',')] or ['']
+    for gi, g in enumerate(groups):
+        loc = maps[gi % len(maps)]; th = themes[gi % len(themes)]   # several maps / themes: the skins go round them
+        cap = os.path.join(caps, ('ring_' if a.ring else '') + '_'.join(s[1] for s in g)[:80] + '_%s_s%d' % (loc, a.seed))
+        if capture(g, cap, ring=a.ring, angles=a.angles, seed=a.seed, rounds=a.rounds, mixed=a.mixed, location=loc, theme=th):
             export.export_capture(cap, a.out, motion=a.motion, overlay=a.overlay, every=a.every)
         if not a.keep: shutil.rmtree(cap, ignore_errors=True)
     if not a.keep: shutil.rmtree(caps, ignore_errors=True)
@@ -130,12 +165,16 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest='cmd', required=True)
     sub.add_parser('doctor').set_defaults(fn=cmd_doctor)
+    p = sub.add_parser('maps'); p.add_argument('--all', action='store_true', help='also the maps of other modes (they do not load)'); p.set_defaults(fn=cmd_maps)
+    sub.add_parser('themes').set_defaults(fn=cmd_themes)
     p = sub.add_parser('skins'); p.add_argument('--brawler', default=''); p.set_defaults(fn=cmd_skins)
     for name, fn in (('capture', cmd_capture), ('run', cmd_run)):
         p = sub.add_parser(name); p.add_argument('--skin', required=True, help='skin names / ids / indices, comma separated')
         p.add_argument('out'); p.add_argument('--ring', action='store_true'); p.add_argument('--angles', default='0,90,180,270', help='solo: attack angles')
         p.add_argument('--seed', type=int, default=94000030); p.add_argument('--rounds', type=int, default=1, help='ring: rounds')
         p.add_argument('--mixed', action='store_true', help='ring: everyone attacks at once (default: brawlers take turns)')
+        p.add_argument('--map', default='Survival612', help='location name(s) from bl.py maps (run: comma separated, the skins go round them)')
+        p.add_argument('--theme', default='', help='theme name(s) from bl.py themes (any theme on any map, e.g. BBArena = Brawl Ball arena; default: the map\'s own)')
         if name == 'run':
             p.add_argument('--motion', action='store_true'); p.add_argument('--overlay', action='store_true'); p.add_argument('--every', type=int, default=1)
             p.add_argument('--keep', action='store_true', help='keep the captures (OUT/_captures)')

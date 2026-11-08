@@ -22,13 +22,14 @@ def other_round_running():
     return False
 
 
-def open_center(tiles, w=30, h=18):
-    """tile (cx, cy) maximising open tiles ('Open' = 27000000) in a w x h window"""
-    T = (np.asarray(tiles).reshape(60, 60) == 27000000).astype(np.int32)
+def open_center(tiles, w=30, h=18, W=60, H=60):
+    """tile (cx, cy) maximising open tiles ('Open' = 27000000) in a w x h window (any map size W x H)"""
+    T = (np.asarray(tiles).reshape(H, W) == 27000000).astype(np.int32)
+    w, h = min(w, W - 2), min(h, H - 2)
     S = np.pad(T.cumsum(0).cumsum(1), ((1, 0), (1, 0)))
     best = None
-    for y in range(0, 60 - h):
-        for x in range(0, 60 - w):
+    for y in range(0, H - h):
+        for x in range(0, W - w):
             n = S[y + h, x + w] - S[y, x + w] - S[y + h, x] + S[y, x]
             if best is None or n > best[0]: best = (n, x + w // 2, y + h // 2)
     return best[1], best[2], best[0] / (w * h)
@@ -104,7 +105,8 @@ def capture(a, inst, request_id):
         inst.reset(a.seed, div=div, gas=0, flags=P.F_STATE)
         info = inst.battle_info(); tiles = inst.map_tiles()
         D.save_battle_map(a.out, info, tiles, extra=dict(seed=a.seed, kind='posecap'))
-        cx, cy, frac = open_center(tiles)
+        MW, MH = (int(info.get('map_w') or 60), int(info.get('map_h') or 60)) if info else (60, 60)   # map size in tiles (3v3 maps are smaller)
+        cx, cy, frac = open_center(tiles, W=MW, H=MH)
         X0, Y0 = (cx + 0.5) * 300, (cy + 0.5) * 300
         print('open centre', cx, cy, 'open fraction %.2f' % frac)
         others = list(range(1, 10))
@@ -143,11 +145,11 @@ def capture(a, inst, request_id):
         inst.step(ticks=40, flags=P.F_STATE, native_mask=0)
         allp = list(range(10))
         if a.solo:
-            far = [(1, 1), (58, 1), (1, 58), (58, 58), (30, 1), (30, 58), (1, 30), (58, 30), (15, 1)]
-            Tl = (np.asarray(tiles).reshape(60, 60) == 27000000)   # the open tile farthest from any non-open tile
-            ys, xs = np.nonzero(~Tl); best = (-1, 30, 30)
-            for ty in range(4, 56):
-                for tx in range(4, 56):
+            far = [(1, 1), (MW - 2, 1), (1, MH - 2), (MW - 2, MH - 2), (MW // 2, 1), (MW // 2, MH - 2), (1, MH // 2), (MW - 2, MH // 2), (MW // 4, 1)]
+            Tl = (np.asarray(tiles).reshape(MH, MW) == 27000000)   # the open tile farthest from any non-open tile
+            ys, xs = np.nonzero(~Tl); best = (-1, MW // 2, MH // 2)
+            for ty in range(4, MH - 4):
+                for tx in range(4, MW - 4):
                     if not Tl[ty, tx]: continue
                     dd = int(np.min(np.maximum(np.abs(xs - tx), np.abs(ys - ty)))) if len(xs) else 99
                     if dd > best[0]: best = (dd, tx, ty)
