@@ -50,6 +50,8 @@ The offline battle is a Showdown battle, so the **map layouts are the 25 Showdow
 every mode** is available through themes: any of the 44 themes works on any map (`python3 bl.py themes`; e.g. `BBArena` = the
 Brawl Ball arena, `BBArenaVolley`, `AirHockey`, `KatanaKingdomNN`, `Mortuary`, `Arcade`, ...). Other modes' map layouts
 (Brawl Ball, Knockout, Bounty, ...) are not supported yet: the game host refuses them, and `bl.py` stops with a message.
+A 3v3 theme (Brawl Ball arena, Arcade, Air Hockey, ...: 21 x 33 in the game's theme table) builds its stands around the map's
+first 21 x 33 tiles, so with such a theme the brawler is placed on that pitch (middle columns) and the idle players far outside it.
 
 ```bash
 python3 bl.py run --skin GunSlingerDefault,BanditGirlDefault --map Survival2,Survival3 --theme BBArena,Mortuary datasets/ds2

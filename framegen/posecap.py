@@ -35,6 +35,22 @@ def open_center(tiles, w=30, h=18, W=60, H=60):
     return best[1], best[2], best[0] / (w * h)
 
 
+def theme_area(theme, MW, MH):
+    """(x0, y0, x1, y1) tiles the theme's surroundings are built for: a 3v3 theme (Brawl Ball arena, Arcade, ...) has
+    MapWidth x MapHeight = 21 x 33 in location_themes.csv and its stadium / stands surround the map's first 21 x 33 tiles; on a
+    bigger (Showdown) map the brawler must stand inside that area, else it is "out of bounds" next to the stands. None: whole map."""
+    if not theme: return None
+    import csv
+    L = list(csv.reader(open(os.path.join(rc.ASSETS, 'csv_logic', 'location_themes.csv'), encoding='utf8'))); h = L[0]
+    rows = [r for r in L[2:] if r and r[0]]
+    r = next((r for r in rows if r[0] == str(theme)), None)
+    if r is None and str(theme).isdigit() and int(theme) // 1000000 == 47 and int(theme) % 1000000 < len(rows): r = rows[int(theme) % 1000000]
+    if r is None: return None
+    try: tw, th = int(r[h.index('MapWidth')]), int(r[h.index('MapHeight')])
+    except (ValueError, IndexError): return None
+    return (0, 0, min(tw, MW), min(th, MH)) if (tw < MW or th < MH) else None
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--chars', required=True); ap.add_argument('--skins', default='')
@@ -106,7 +122,10 @@ def capture(a, inst, request_id):
         info = inst.battle_info(); tiles = inst.map_tiles()
         D.save_battle_map(a.out, info, tiles, extra=dict(seed=a.seed, kind='posecap'))
         MW, MH = (int(info.get('map_w') or 60), int(info.get('map_h') or 60)) if info else (60, 60)   # map size in tiles (3v3 maps are smaller)
-        cx, cy, frac = open_center(tiles, W=MW, H=MH)
+        AREA = theme_area(a.theme, MW, MH)
+        if AREA:   # 3v3 theme: everything happens on its pitch (the ring around the pitch's centre)
+            cx, cy, frac = (AREA[0] + AREA[2]) // 2, (AREA[1] + AREA[3]) // 2, 0.0; print('theme area (tiles)', AREA)
+        else: cx, cy, frac = open_center(tiles, W=MW, H=MH)
         X0, Y0 = (cx + 0.5) * 300, (cy + 0.5) * 300
         print('open centre', cx, cy, 'open fraction %.2f' % frac)
         others = list(range(1, 10))
@@ -146,10 +165,15 @@ def capture(a, inst, request_id):
         allp = list(range(10))
         if a.solo:
             far = [(1, 1), (MW - 2, 1), (1, MH - 2), (MW - 2, MH - 2), (MW // 2, 1), (MW // 2, MH - 2), (1, MH // 2), (MW - 2, MH // 2), (MW // 4, 1)]
+            if AREA and MW - 2 > AREA[2] + 12:   # 3v3 theme: the idle players wait well outside its pitch (off screen)
+                gx = [AREA[2] + 12 + k * ((MW - 2 - (AREA[2] + 12)) // 2) for k in range(3)]
+                far = [(x, y) for y in (1, MH // 2, MH - 2) for x in gx]
             Tl = (np.asarray(tiles).reshape(MH, MW) == 27000000)   # the open tile farthest from any non-open tile
-            ys, xs = np.nonzero(~Tl); best = (-1, MW // 2, MH // 2)
-            for ty in range(4, MH - 4):
-                for tx in range(4, MW - 4):
+            rx0, ry0, rx1, ry1 = AREA if AREA else (0, 0, MW, MH)
+            mid = (rx0 + rx1) // 2
+            ys, xs = np.nonzero(~Tl); best = (-1, mid, (ry0 + ry1) // 2)
+            for ty in range(ry0 + 4, ry1 - 4):
+                for tx in (range(mid - 2, mid + 3) if AREA else range(rx0 + 4, rx1 - 4)):   # 3v3 theme: the pitch's middle columns (the camera then shows both sides, as in the real mode)
                     if not Tl[ty, tx]: continue
                     dd = int(np.min(np.maximum(np.abs(xs - tx), np.abs(ys - ty)))) if len(xs) else 99
                     if dd > best[0]: best = (dd, tx, ty)
