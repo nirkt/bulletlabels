@@ -32,6 +32,11 @@ Many attacks per frame, each labelled from its own clean single-brawler capture,
 The recording, exact replay, draw matching and the composite mode are built and verified; what is left and how to do it is in
 **`docs/GPU_COMPOSITING.md`** (written so an AI coding agent can continue from it).
 
+## Known limitations
+
+See `docs/OPEN_ISSUES.md`: brawlers always face the camera in these frames (a quirk of the offline client; labels unaffected), only
+Showdown map layouts load (every mode's theme works), ring mode labels are not reviewed yet.
+
 ## Requirements
 
 * Linux x86_64 with a desktop session (the GL host opens a hidden X11 window; on a headless box use `xvfb-run -a`).
