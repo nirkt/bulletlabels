@@ -1,0 +1,16 @@
+# the game (downloaded by setup.sh; never commit it)
+game/
+*.apk
+# local builds (the prebuilt binaries in native/prebuilt/ are committed)
+native/glhost/nbgl
+native/loader/nbhost_spawnfix2
+native/qemu/bin/
+native/qemu/src/
+native/qemu/nb-src/
+native/qemu/nb-build/
+# captures, datasets, scratch
+_test/
+runs/
+datasets/
+__pycache__/
+*.pyc
