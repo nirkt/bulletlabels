@@ -9,7 +9,7 @@ cd "$(dirname "$0")"
 REPO=$(pwd)
 
 # ---- the game: the APK whose libg.so matches native/LIBG_SHA256 (the game host's patches are made for exactly that build)
-APK_URL=""          # <- direct download link of the APK (filled in by the repo owner)
+APK_URL="https://pub-3e0f25080eb949a08641fd278fad96d1.r2.dev/nb_68.279_release_7c5c5152.apk"
 
 APT="python3 python3-pip python3-venv unzip curl xz-utils util-linux gcc ninja-build meson pkg-config flex bison libglib2.0-dev \
 libegl-dev libgles-dev libx11-dev zlib1g-dev libzstd-dev libegl1 libgles2 qemu-user"
