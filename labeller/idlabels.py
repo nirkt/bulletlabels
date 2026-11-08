@@ -732,6 +732,7 @@ def labels(objs, cam, R, state=None, ended=(), img=None):
         if d not in owner and j not in has: owner[d] = j; has.add(j)
     for n, j, d in pairs:
         if d not in owner: owner[d] = j
+    obj_draws = {}
     for j, o in enumerate(objs):
         t, own = o['t'], o['own']; key = (t, own)
         if key not in codes: codes[key] = sprite_pixels(t, own, R)
@@ -748,6 +749,7 @@ def labels(objs, cam, R, state=None, ended=(), img=None):
             C[body5] = 1; C[(C == 5)] = 4
         ground_k = [k for k in ks if lids[k][2] == 'ground']
         region = _dilate(pred_any, TRAIL_NEAR if trail_body(t) else NEAR)
+        obj_draws[int(o['id'])] = sorted(int(d) for d in np.unique(ids_h[(C > 0) & region]) if d > 0)   # its draws (compositing)
         unf = t in glow.UNFADE
         mine = region & ((C == 1) | (C == 3)) & ((cv >= FADE_CUT.get(t, CUT)) | (unf & (cv > 0)))
         # a 3D body too (AxeJuggler005's ghost: its clip is only the tail glow): its own model draw is drawn body
@@ -865,6 +867,7 @@ def labels(objs, cam, R, state=None, ended=(), img=None):
             g = np.isin(ids, ground_k) & (share >= BL.CUT) & visible & (out_ids < 0)
             out_ids[g] = ground_k[0]; out_share[g] = share[g]
     P2 = dict(P); P2.update(share=out_share, ids=out_ids, lids=lids)
+    P2['draws'] = obj_draws   # object id -> the ID-pass draw ids of its own sprites near it (GPU compositing; labels unaffected)
     if state is not None:
         taken = out_ids >= 0
         for cid, m in spawn_labels(state, cam, R, taken).items():

@@ -14,6 +14,24 @@ labels  ->  masks/<frame>.png       16-bit instance map (0 = background, i = ins
                                     (+ optional motion: direction, end point, end tick)
 ```
 
+## Examples
+
+Frames from the real client (left) and their labels (right; red attack, magenta super, yellow zone):
+
+![showcase](docs/images/showcase_grid.jpg)
+
+| | |
+|---|---|
+| ![](docs/images/showcase_1.jpg) | ![](docs/images/showcase_2.jpg) |
+| ![](docs/images/showcase_3.jpg) | ![](docs/images/showcase_4.jpg) |
+| ![](docs/images/showcase_5.jpg) | ![](docs/images/showcase_6.jpg) |
+
+## Next step: GPU compositing (in progress)
+
+Many attacks per frame, each labelled from its own clean single-brawler capture, blended by the GPU with the game's own shaders.
+The recording, exact replay, draw matching and the composite mode are built and verified; what is left and how to do it is in
+**`docs/GPU_COMPOSITING.md`** (written so an AI coding agent can continue from it).
+
 ## Requirements
 
 * Linux x86_64 with a desktop session (the GL host opens a hidden X11 window; on a headless box use `xvfb-run -a`).
